@@ -22,11 +22,12 @@
             width: 100%;
             border-collapse: collapse;
             margin-top: 20px;
+            font-size: 14px;
         }
 
         th,
         td {
-            padding: 10px;
+            padding: 4px;
             border: 1px solid #ccc;
             text-align: left;
         }
@@ -71,75 +72,92 @@
         </tbody>
     </table>
 
-    <script>
-        const stats = JSON.parse(localStorage.getItem('lawStats') || '{}');
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/12.0.0/firebase-app.js";
+        import { getDatabase, ref, set, get, child } from "https://www.gstatic.com/firebasejs/12.0.0/firebase-database.js";
 
-        function submitEntry() {
+        const firebaseConfig = {
+            apiKey: "AIzaSyAGl8F5fZzkVSk4nS72X6VqFRT2tt1uwoI",
+            authDomain: "lawusecount.firebaseapp.com",
+            databaseURL: "https://lawusecount-default-rtdb.firebaseio.com",
+            projectId: "lawusecount",
+            storageBucket: "lawusecount.appspot.com",
+            messagingSenderId: "839955573501",
+            appId: "1:839955573501:web:679c95edcc48a0e4b32c94",
+            measurementId: "G-VH1F4SCKNL"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+
+        let stats = {};
+
+        window.submitEntry = async function() {
             const law = document.getElementById('law').value;
             let article = document.getElementById('article').value.trim();
-
-            if (!article) {
-                alert("請輸入條號！");
-                return;
-            }
-
-            // 統一條號格式
+            if (!article) { alert("請輸入條號！"); return; }
             if (!/^第.*條$/.test(article)) {
-                // 如果不是「第...條」格式，則自動補上
                 article = `第${article.replace(/[^\d]/g, '')}條`;
             }
-
             const key = `${law} - ${article}`;
             stats[key] = (stats[key] || 0) + 1;
-            localStorage.setItem('lawStats', JSON.stringify(stats));
             renderTable();
+            await saveToFirebase();
             document.getElementById('article').value = '';
         }
 
         function renderTable() {
             const tbody = document.querySelector('#statsTable tbody');
             tbody.innerHTML = '';
-
-            // 依法規名稱分組
             const grouped = {};
             Object.keys(stats).forEach(key => {
                 const [law, article] = key.split(' - ');
                 if (!grouped[law]) grouped[law] = [];
                 grouped[law].push({ article, count: stats[key] });
             });
-
             Object.keys(grouped).sort().forEach(law => {
-                // 法規名稱列
                 const lawRow = `<tr><td colspan="3" style="font-weight:bold;">${law}</td></tr>`;
                 tbody.insertAdjacentHTML('beforeend', lawRow);
-
-                // 條號與次數
                 grouped[law].sort((a, b) => a.article.localeCompare(b.article)).forEach(item => {
                     const key = `${law} - ${item.article}`;
                     const row = `<tr>
-        <td></td>
-        <td style="padding-left:2em;">${item.article}</td>
-        <td>
-            ${item.count}次
-            <button onclick="changeCount('${key}', 1)">＋</button>
-            <button onclick="changeCount('${key}', -1)">－</button>
-        </td>
-    </tr>`;
+                        <td></td>
+                        <td style="padding-left:2em;">${item.article}</td>
+                        <td>
+                            ${item.count}次
+                            <button onclick="changeCount('${key}', 1)">＋</button>
+                            <button onclick="changeCount('${key}', -1)">－</button>
+                        </td>
+                    </tr>`;
                     tbody.insertAdjacentHTML('beforeend', row);
                 });
             });
         }
-        function changeCount(key, delta) {
+
+        window.changeCount = async function(key, delta) {
             if (!stats[key]) stats[key] = 0;
             stats[key] += delta;
-            if (stats[key] < 1) {
-                delete stats[key];
-            }
-            localStorage.setItem('lawStats', JSON.stringify(stats));
+            if (stats[key] < 1) { delete stats[key]; }
             renderTable();
+            await saveToFirebase();
         }
-        // 初始化表格
-        renderTable();
+
+        async function saveToFirebase() {
+            await set(ref(db, "lawStats/main"), stats);
+            console.log("已同步到 Realtime Database");
+        }
+
+        async function loadFromFirebase() {
+            const snapshot = await get(child(ref(db), "lawStats/main"));
+            if (snapshot.exists()) {
+                stats = snapshot.val();
+                renderTable();
+            }
+        }
+
+        window.onload = function() {
+            loadFromFirebase();
+        };
     </script>
 </body>
 
