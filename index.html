@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+
+<head>
+    <meta charset="UTF-8">
+    <title>法條出現頻率統計</title>
+    <style>
+        body {
+            font-family: "Helvetica Neue", sans-serif;
+            padding: 20px;
+        }
+
+        input,
+        button,
+        select {
+            padding: 8px;
+            font-size: 16px;
+            margin-right: 10px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+
+        th,
+        td {
+            padding: 10px;
+            border: 1px solid #ccc;
+            text-align: left;
+        }
+
+        th {
+            background-color: #f4f4f4;
+        }
+    </style>
+</head>
+
+<body>
+    <h2>📊 法條出現頻率統計</h2>
+
+    <label for="law">法規名稱：</label>
+    <select id="law">
+        <option value="刑事訴訟法">刑事訴訟法</option>
+        <option value="刑法">刑法</option>
+        <option value="民法">民法</option>
+        <option value="民事訴訟法">民事訴訟法</option>
+        <option value="公司法">公司法</option>
+        <option value="票據法">票據法</option>
+        <option value="證交法">證交法</option>
+        <option value="保險法">保險法</option>
+        <option value="強制執行法">強制執行法</option>
+        <option value="國際私法">國際私法</option>
+    </select>
+
+    <label for="article">條號：</label>
+    <input type="text" id="article" placeholder="例如：第5條" onkeydown="if(event.key==='Enter'){submitEntry();}">
+    <button onclick="submitEntry()">送出</button>
+
+    <table id="statsTable">
+        <thead>
+            <tr>
+                <th>法規名稱</th>
+                <th>條號</th>
+                <th>輸入次數</th>
+            </tr>
+        </thead>
+        <tbody>
+            <!-- 自動生成 -->
+        </tbody>
+    </table>
+
+    <script>
+        const stats = JSON.parse(localStorage.getItem('lawStats') || '{}');
+
+        function submitEntry() {
+            const law = document.getElementById('law').value;
+            let article = document.getElementById('article').value.trim();
+
+            if (!article) {
+                alert("請輸入條號！");
+                return;
+            }
+
+            // 統一條號格式
+            if (!/^第.*條$/.test(article)) {
+                // 如果不是「第...條」格式，則自動補上
+                article = `第${article.replace(/[^\d]/g, '')}條`;
+            }
+
+            const key = `${law} - ${article}`;
+            stats[key] = (stats[key] || 0) + 1;
+            localStorage.setItem('lawStats', JSON.stringify(stats));
+            renderTable();
+            document.getElementById('article').value = '';
+        }
+
+        function renderTable() {
+            const tbody = document.querySelector('#statsTable tbody');
+            tbody.innerHTML = '';
+
+            // 依法規名稱分組
+            const grouped = {};
+            Object.keys(stats).forEach(key => {
+                const [law, article] = key.split(' - ');
+                if (!grouped[law]) grouped[law] = [];
+                grouped[law].push({ article, count: stats[key] });
+            });
+
+            Object.keys(grouped).sort().forEach(law => {
+                // 法規名稱列
+                const lawRow = `<tr><td colspan="3" style="font-weight:bold;">${law}</td></tr>`;
+                tbody.insertAdjacentHTML('beforeend', lawRow);
+
+                // 條號與次數
+                grouped[law].sort((a, b) => a.article.localeCompare(b.article)).forEach(item => {
+                    const key = `${law} - ${item.article}`;
+                    const row = `<tr>
+        <td></td>
+        <td style="padding-left:2em;">${item.article}</td>
+        <td>
+            ${item.count}次
+            <button onclick="changeCount('${key}', 1)">＋</button>
+            <button onclick="changeCount('${key}', -1)">－</button>
+        </td>
+    </tr>`;
+                    tbody.insertAdjacentHTML('beforeend', row);
+                });
+            });
+        }
+        function changeCount(key, delta) {
+            if (!stats[key]) stats[key] = 0;
+            stats[key] += delta;
+            if (stats[key] < 1) {
+                delete stats[key];
+            }
+            localStorage.setItem('lawStats', JSON.stringify(stats));
+            renderTable();
+        }
+        // 初始化表格
+        renderTable();
+    </script>
+</body>
+
+</html>
